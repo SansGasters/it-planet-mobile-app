@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#060610">
+
+    <!-- Canvas -->
+    <com.noda.mindmap.presentation.canvas.NodaCanvasView
+        android:id="@+id/nodaCanvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
+
+    <!-- Hint -->
+    <TextView
+        android:id="@+id/hintText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="72dp"
+        android:text="✦  двойное касание — новая мысль"
+        android:textColor="#33FFFFFF"
+        android:textSize="12sp"
+        android:visibility="visible"/>
+
+    <!-- Top right buttons -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="50dp"
+        android:layout_marginEnd="16dp"
+        android:orientation="vertical"
+        android:gravity="end">
+
+        <!-- Search button -->
+        <TextView
+            android:id="@+id/btnSearch"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:text="⌕"
+            android:textSize="22sp"
+            android:textColor="#AA6C63FF"
+            android:gravity="center"
+            android:background="@drawable/btn_circle_bg"
+            android:layout_marginBottom="10dp"/>
+
+        <!-- Meditation button -->
+        <TextView
+            android:id="@+id/btnMeditation"
+            android:layout_width="46dp"
+            android:layout_height="46dp"
+            android:text="✦"
+            android:textSize="20sp"
+            android:textColor="#AA6C63FF"
+            android:gravity="center"
+            android:background="@drawable/btn_circle_bg"/>
+
+    </LinearLayout>
+
+    <!-- Search panel — drops down from top -->
+    <LinearLayout
+        android:id="@+id/searchPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="vertical"
+        android:background="@drawable/search_panel_bg"
+        android:paddingHorizontal="16dp"
+        android:paddingTop="56dp"
+        android:paddingBottom="12dp"
+        android:visibility="gone"
+        android:elevation="10dp">
+
+        <EditText
+            android:id="@+id/searchInput"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:background="@drawable/input_bg"
+            android:paddingHorizontal="16dp"
+            android:hint="Поиск мыслей..."
+            android:textColorHint="#44AAAAFF"
+            android:textColor="#FFFFFFFF"
+            android:textSize="15sp"
+            android:inputType="text"
+            android:imeOptions="actionSearch"/>
+
+        <!-- Search results list -->
+        <LinearLayout
+            android:id="@+id/searchResultsList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingTop="8dp"
+            android:visibility="gone"/>
+
+    </LinearLayout>
+
+    <!-- Bottom panel -->
+    <LinearLayout
+        android:id="@+id/bottomPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="vertical"
+        android:background="@drawable/bottom_panel_bg_full"
+        android:elevation="8dp"
+        android:visibility="gone">
+
+        <!-- Text input row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="18dp"
+            android:gravity="center_vertical">
+
+            <EditText
+                android:id="@+id/editNodeText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="#FFFFFFFF"
+                android:textColorHint="#446C63FF"
+                android:hint="Назови эту мысль..."
+                android:background="@drawable/input_bg"
+                android:textSize="17sp"
+                android:padding="12dp"
+                android:inputType="textCapSentences"
+                android:imeOptions="actionDone"
+                android:maxLines="2"/>
+
+            <TextView
+                android:id="@+id/btnSaveText"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:text="✓"
+                android:textSize="20sp"
+                android:textColor="#6C63FF"
+                android:gravity="center"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/btn_action_bg"/>
+
+        </LinearLayout>
+
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginHorizontal="20dp"
+            android:layout_marginTop="14dp"
+            android:background="#1A6C63FF"/>
+
+        <!-- Color + Size row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical">
+
+            <!-- Node color dot -->
+            <View
+                android:id="@+id/btnNodeColor"
+                android:layout_width="32dp"
+                android:layout_height="32dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="нода"
+                android:textColor="#55FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginStart="4dp"/>
+
+            <View android:layout_width="16dp" android:layout_height="1dp"/>
+
+            <!-- Text color dot -->
+            <View
+                android:id="@+id/btnTextColor"
+                android:layout_width="32dp"
+                android:layout_height="32dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="текст"
+                android:textColor="#55FFFFFF"
+                android:textSize="10sp"
+                android:layout_marginStart="4dp"/>
+
+            <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
+
+            <!-- Size slider -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="○"
+                android:textColor="#44FFFFFF"
+                android:textSize="10sp"/>
+
+            <SeekBar
+                android:id="@+id/sizeSlider"
+                android:layout_width="110dp"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="25"
+                android:layout_marginHorizontal="8dp"
+                android:thumbTint="#6C63FF"
+                android:progressTint="#6C63FF"
+                android:progressBackgroundTint="#22FFFFFF"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="●"
+                android:textColor="#AAAAFF"
+                android:textSize="16sp"/>
+
+        </LinearLayout>
+
+        <!-- Action buttons row -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:orientation="horizontal"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginTop="10dp"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:id="@+id/btnMoreOptions"
+                android:layout_width="52dp"
+                android:layout_height="match_parent"
+                android:text="⋯"
+                android:textSize="20sp"
+                android:textColor="#AAAACC"
+                android:gravity="center"
+                android:background="@drawable/btn_action_bg"/>
+
+            <View android:layout_width="8dp" android:layout_height="1dp"/>
+
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:text="нажмите на цвет чтобы изменить"
+                android:textColor="#33FFFFFF"
+                android:textSize="11sp"
+                android:gravity="center"/>
+
+            <View android:layout_width="8dp" android:layout_height="1dp"/>
+
+            <TextView
+                android:id="@+id/btnDeleteNode"
+                android:layout_width="52dp"
+                android:layout_height="match_parent"
+                android:text="✕"
+                android:textSize="18sp"
+                android:textColor="#FF6584"
+                android:gravity="center"
+                android:background="@drawable/btn_action_bg"/>
+
+        </LinearLayout>
+
+        <View
+            android:id="@+id/navBarSpacer"
+            android:layout_width="match_parent"
+            android:layout_height="16dp"/>
+
+    </LinearLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
