@@ -48,7 +48,8 @@ class NodeRepositoryImpl @Inject constructor(
         color = tryParseColor(colorHex, "#6C63FF"),
         textColor = tryParseColor(textColorHex, "#FFFFFF"),
         radius = radius.coerceIn(30f, 150f),
-        isFrozen = isFrozen
+        isFrozen = isFrozen,
+        notes = notes
     )
 
     private fun Node.toEntity() = NodeEntity(
@@ -56,7 +57,8 @@ class NodeRepositoryImpl @Inject constructor(
         colorHex = colorToHex(color),
         textColorHex = colorToHex(textColor),
         radius = radius,
-        isFrozen = isFrozen
+        isFrozen = isFrozen,
+        notes = notes
     )
 
     private fun ConnectionEntity.toDomain() = Connection(

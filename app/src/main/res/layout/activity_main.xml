@@ -5,13 +5,11 @@
     android:layout_height="match_parent"
     android:background="#060610">
 
-    <!-- Canvas -->
     <com.noda.mindmap.presentation.canvas.NodaCanvasView
         android:id="@+id/nodaCanvas"
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
-    <!-- Hint -->
     <TextView
         android:id="@+id/hintText"
         android:layout_width="wrap_content"
@@ -20,8 +18,7 @@
         android:layout_marginTop="72dp"
         android:text="✦  двойное касание — новая мысль"
         android:textColor="#33FFFFFF"
-        android:textSize="12sp"
-        android:visibility="visible"/>
+        android:textSize="12sp"/>
 
     <!-- Top right buttons -->
     <LinearLayout
@@ -33,7 +30,6 @@
         android:orientation="vertical"
         android:gravity="end">
 
-        <!-- Search button -->
         <TextView
             android:id="@+id/btnSearch"
             android:layout_width="46dp"
@@ -45,7 +41,6 @@
             android:background="@drawable/btn_circle_bg"
             android:layout_marginBottom="10dp"/>
 
-        <!-- Meditation button -->
         <TextView
             android:id="@+id/btnMeditation"
             android:layout_width="46dp"
@@ -55,10 +50,9 @@
             android:textColor="#AA6C63FF"
             android:gravity="center"
             android:background="@drawable/btn_circle_bg"/>
-
     </LinearLayout>
 
-    <!-- Search panel — drops down from top -->
+    <!-- Search panel -->
     <LinearLayout
         android:id="@+id/searchPanel"
         android:layout_width="match_parent"
@@ -72,20 +66,37 @@
         android:visibility="gone"
         android:elevation="10dp">
 
-        <EditText
-            android:id="@+id/searchInput"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="48dp"
-            android:background="@drawable/input_bg"
-            android:paddingHorizontal="16dp"
-            android:hint="Поиск мыслей..."
-            android:textColorHint="#44AAAAFF"
-            android:textColor="#FFFFFFFF"
-            android:textSize="15sp"
-            android:inputType="text"
-            android:imeOptions="actionSearch"/>
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <!-- Search results list -->
+            <EditText
+                android:id="@+id/searchInput"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/input_bg"
+                android:paddingHorizontal="16dp"
+                android:hint="Поиск мыслей..."
+                android:textColorHint="#44AAAAFF"
+                android:textColor="#FFFFFFFF"
+                android:textSize="15sp"
+                android:inputType="text"
+                android:imeOptions="actionSearch"/>
+
+            <TextView
+                android:id="@+id/btnCloseSearch"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:text="✕"
+                android:textSize="18sp"
+                android:textColor="#88FFFFFF"
+                android:gravity="center"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+
         <LinearLayout
             android:id="@+id/searchResultsList"
             android:layout_width="match_parent"
@@ -93,7 +104,6 @@
             android:orientation="vertical"
             android:paddingTop="8dp"
             android:visibility="gone"/>
-
     </LinearLayout>
 
     <!-- Bottom panel -->
@@ -107,7 +117,6 @@
         android:elevation="8dp"
         android:visibility="gone">
 
-        <!-- Text input row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -141,10 +150,8 @@
                 android:gravity="center"
                 android:layout_marginStart="8dp"
                 android:background="@drawable/btn_action_bg"/>
-
         </LinearLayout>
 
-        <!-- Divider -->
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"
@@ -161,7 +168,6 @@
             android:layout_marginTop="12dp"
             android:gravity="center_vertical">
 
-            <!-- Node color dot -->
             <View
                 android:id="@+id/btnNodeColor"
                 android:layout_width="32dp"
@@ -177,7 +183,6 @@
 
             <View android:layout_width="16dp" android:layout_height="1dp"/>
 
-            <!-- Text color dot -->
             <View
                 android:id="@+id/btnTextColor"
                 android:layout_width="32dp"
@@ -193,7 +198,6 @@
 
             <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1"/>
 
-            <!-- Size slider -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -218,10 +222,9 @@
                 android:text="●"
                 android:textColor="#AAAAFF"
                 android:textSize="16sp"/>
-
         </LinearLayout>
 
-        <!-- Action buttons row -->
+        <!-- Action row -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="52dp"
@@ -243,13 +246,15 @@
             <View android:layout_width="8dp" android:layout_height="1dp"/>
 
             <TextView
+                android:id="@+id/btnOpenNotes"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:text="нажмите на цвет чтобы изменить"
-                android:textColor="#33FFFFFF"
-                android:textSize="11sp"
-                android:gravity="center"/>
+                android:text="📝  заметки"
+                android:textSize="13sp"
+                android:textColor="#AA6C63FF"
+                android:gravity="center"
+                android:background="@drawable/btn_action_bg"/>
 
             <View android:layout_width="8dp" android:layout_height="1dp"/>
 
@@ -262,14 +267,94 @@
                 android:textColor="#FF6584"
                 android:gravity="center"
                 android:background="@drawable/btn_action_bg"/>
-
         </LinearLayout>
 
         <View
             android:id="@+id/navBarSpacer"
             android:layout_width="match_parent"
             android:layout_height="16dp"/>
+    </LinearLayout>
 
+    <!-- Notes panel — fullscreen, keyboard pushes it up via windowSoftInputMode -->
+    <LinearLayout
+        android:id="@+id/notesPanel"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:background="#F2060610"
+        android:visibility="gone"
+        android:elevation="20dp"
+        android:fitsSystemWindows="true">
+
+        <!-- Header — fixed at top -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:gravity="center_vertical"
+            android:background="#0A0A1E">
+
+            <TextView
+                android:id="@+id/notesTitleLabel"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Заметки"
+                android:textColor="#AAAACC"
+                android:textSize="16sp"
+                android:ellipsize="end"
+                android:maxLines="1"/>
+
+            <TextView
+                android:id="@+id/btnSaveNotes"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Сохранить"
+                android:textSize="14sp"
+                android:textColor="#6C63FF"
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="8dp"
+                android:background="@drawable/btn_action_bg"/>
+
+            <TextView
+                android:id="@+id/btnCloseNotes"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:text="✕"
+                android:textSize="18sp"
+                android:textColor="#88FFFFFF"
+                android:gravity="center"
+                android:layout_marginStart="8dp"/>
+        </LinearLayout>
+
+        <!-- Scrollable text editor — fills remaining space, shrinks when keyboard appears -->
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:fillViewport="true">
+
+            <EditText
+                android:id="@+id/editNotes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:minHeight="300dp"
+                android:background="@null"
+                android:textColor="#FFFFFFFF"
+                android:textColorHint="#33AAAAFF"
+                android:hint="Пиши всё что угодно&#10;&#10;• Список идей&#10;• Заметки&#10;• Планы&#10;• Мысли..."
+                android:textSize="16sp"
+                android:padding="20dp"
+                android:gravity="top|start"
+                android:inputType="textMultiLine|textCapSentences"
+                android:lineSpacingExtra="4dp"/>
+        </ScrollView>
+
+        <View
+            android:id="@+id/notesNavBarSpacer"
+            android:layout_width="match_parent"
+            android:layout_height="16dp"/>
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

@@ -34,17 +34,23 @@ class NodaViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
 
     init {
-        // Load all nodes + connections
         viewModelScope.launch {
             combine(
                 repository.getNodes(),
                 repository.getConnections()
             ) { nodes, connections ->
-                _uiState.value.copy(nodes = nodes, connections = connections)
+                // Preserve selectedNode reference by matching id
+                val updatedSelected = _uiState.value.selectedNode?.let { sel ->
+                    nodes.find { it.id == sel.id }
+                }
+                _uiState.value.copy(
+                    nodes = nodes,
+                    connections = connections,
+                    selectedNode = updatedSelected
+                )
             }.collect { _uiState.value = it }
         }
 
-        // Search with debounce
         viewModelScope.launch {
             @OptIn(FlowPreview::class)
             _searchQuery
@@ -65,6 +71,11 @@ class NodaViewModel @Inject constructor(
     fun updateNodeText(nodeId: String, text: String) = viewModelScope.launch {
         val node = _uiState.value.nodes.find { it.id == nodeId } ?: return@launch
         repository.updateNode(node.copy(text = text))
+    }
+
+    fun updateNodeNotes(nodeId: String, notes: String) = viewModelScope.launch {
+        val node = _uiState.value.nodes.find { it.id == nodeId } ?: return@launch
+        repository.updateNode(node.copy(notes = notes))
     }
 
     fun updateNodeColor(nodeId: String, color: Int) = viewModelScope.launch {
@@ -104,7 +115,8 @@ class NodaViewModel @Inject constructor(
             x = (a.x + b.x) / 2f,
             y = (a.y + b.y) / 2f,
             color = blendColors(a.color, b.color),
-            radius = ((a.radius + b.radius) / 2f).coerceIn(30f, 150f)
+            radius = ((a.radius + b.radius) / 2f).coerceIn(30f, 150f),
+            notes = listOf(a.notes, b.notes).filter { it.isNotEmpty() }.joinToString("\n\n---\n\n")
         )
         repository.saveNode(merged)
         repository.deleteNode(a.id)
@@ -119,7 +131,6 @@ class NodaViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(isMeditationMode = !_uiState.value.isMeditationMode)
     }
 
-    // Search
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
         _uiState.value = _uiState.value.copy(searchQuery = query)

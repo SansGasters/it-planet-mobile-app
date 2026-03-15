@@ -13,5 +13,6 @@ data class NodeEntity(
     val textColorHex: String = "#FFFFFF",
     val radius: Float = 60f,
     val isFrozen: Boolean = false,
+    val notes: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )

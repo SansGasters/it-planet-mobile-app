@@ -26,6 +26,10 @@ class NodaCanvasView @JvmOverloads constructor(
     private var cameraY = 0f
     private var cameraScale = 1f
 
+    // For pinch zoom — track focal point to zoom toward fingers, not screen center
+    private var lastFocusX = 0f
+    private var lastFocusY = 0f
+
     private val physics = PhysicsEngine()
     private val renderer = NodeRenderer()
 
@@ -59,6 +63,7 @@ class NodaCanvasView @JvmOverloads constructor(
 
     var onNodeCreated: ((Node) -> Unit)? = null
     var onNodeSelected: ((Node?) -> Unit)? = null
+    var onNodeDoubleTapped: ((Node) -> Unit)? = null   // ← новый callback
     var onConnectionCreated: ((Connection) -> Unit)? = null
     var onNodesMergeRequested: ((Node, Node) -> Unit)? = null
     var onNodeLongPressed: ((Node) -> Unit)? = null
@@ -73,24 +78,22 @@ class NodaCanvasView @JvmOverloads constructor(
     // ─── Public API ───────────────────────────────────────────────────────────
 
     fun setNodes(newNodes: List<Node>) {
-        val existingIds = nodes.map { it.id }.toSet()
         val newIds = newNodes.map { it.id }.toSet()
-        newNodes.filter { it.id !in existingIds }.forEach { nodes.add(it) }
         nodes.removeIf { it.id !in newIds }
-        // Update existing node properties
+        val existingIds = nodes.map { it.id }.toSet()
+        newNodes.filter { it.id !in existingIds }.forEach { nodes.add(it) }
+
+        // Update properties IN PLACE — preserves x, y, vx, vy owned by physics
         newNodes.forEach { updated ->
-            val idx = nodes.indexOfFirst { it.id == updated.id }
-            if (idx >= 0) {
-                val existing = nodes[idx]
-                nodes[idx] = existing.copy(
-                    text = updated.text,
-                    color = updated.color,
-                    textColor = updated.textColor,
-                    radius = updated.radius,
-                    isFrozen = updated.isFrozen
-                )
-            }
+            val existing = nodes.find { it.id == updated.id } ?: return@forEach
+            existing.text = updated.text
+            existing.color = updated.color
+            existing.textColor = updated.textColor
+            existing.radius = updated.radius
+            existing.isFrozen = updated.isFrozen
         }
+
+        selectedNode?.let { sel -> selectedNode = nodes.find { it.id == sel.id } }
     }
 
     fun setConnections(newConnections: List<Connection>) {
@@ -98,6 +101,7 @@ class NodaCanvasView @JvmOverloads constructor(
     }
 
     fun removeNode(nodeId: String) {
+        if (draggedNode?.id == nodeId) draggedNode = null
         nodes.removeIf { it.id == nodeId }
         connections.removeIf { it.fromNodeId == nodeId || it.toNodeId == nodeId }
         if (selectedNode?.id == nodeId) selectedNode = null
@@ -113,9 +117,7 @@ class NodaCanvasView @JvmOverloads constructor(
     }
 
     fun updateNodeRadius(nodeId: String, radius: Float) {
-        val idx = nodes.indexOfFirst { it.id == nodeId }
-        if (idx >= 0) nodes[idx] = nodes[idx].copy(radius = radius.coerceIn(30f, 150f))
-        invalidate()
+        nodes.find { it.id == nodeId }?.radius = radius.coerceIn(30f, 150f); invalidate()
     }
 
     fun toggleFreezeNode(nodeId: String) {
@@ -123,16 +125,13 @@ class NodaCanvasView @JvmOverloads constructor(
     }
 
     fun updateNodeText(nodeId: String, text: String) {
-        val idx = nodes.indexOfFirst { it.id == nodeId }
-        if (idx >= 0) nodes[idx] = nodes[idx].copy(text = text)
-        invalidate()
+        nodes.find { it.id == nodeId }?.text = text; invalidate()
     }
 
     fun setHighlightedNodes(ids: Set<String>) {
         renderer.highlightedNodeIds = ids; invalidate()
     }
 
-    // Fly camera to a node
     fun focusOnNode(nodeId: String) {
         val node = nodes.find { it.id == nodeId } ?: return
         cameraX = -node.x * cameraScale
@@ -227,15 +226,46 @@ class NodaCanvasView @JvmOverloads constructor(
 
     private val scaleDetector = ScaleGestureDetector(context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(d: ScaleGestureDetector): Boolean {
+                lastFocusX = d.focusX
+                lastFocusY = d.focusY
+                return true
+            }
             override fun onScale(d: ScaleGestureDetector): Boolean {
-                cameraScale = (cameraScale * d.scaleFactor).coerceIn(0.15f, 4f); return true
+                val oldScale = cameraScale
+                val newScale = (cameraScale * d.scaleFactor).coerceIn(0.15f, 4f)
+                val focusX = d.focusX
+                val focusY = d.focusY
+
+                // Zoom toward focal point
+                val worldX = (focusX - width / 2f - cameraX) / oldScale
+                val worldY = (focusY - height / 2f - cameraY) / oldScale
+                cameraScale = newScale
+                cameraX = focusX - width / 2f - worldX * newScale
+                cameraY = focusY - height / 2f - worldY * newScale
+
+                // Also pan with focal point delta (handles finger drift during pinch)
+                cameraX += focusX - lastFocusX
+                cameraY += focusY - lastFocusY
+
+                lastFocusX = focusX
+                lastFocusY = focusY
+                // Keep lastTouch in sync so ACTION_POINTER_UP doesn't cause a jump
+                lastTouchX = focusX
+                lastTouchY = focusY
+                return true
             }
         })
 
     private val gestureDetector = GestureDetector(context,
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                if (findNodeAtScreen(e.x, e.y) == null) {
+                val node = findNodeAtScreen(e.x, e.y)
+                if (node != null) {
+                    // Double tap on node → open notes
+                    onNodeDoubleTapped?.invoke(node)
+                } else {
+                    // Double tap on empty → create node
                     val (wx, wy) = screenToWorld(e.x, e.y)
                     createNewNode(wx, wy)
                     physics.pushFromPoint(nodes, wx, wy, 200f, 8f)
@@ -281,11 +311,16 @@ class NodaCanvasView @JvmOverloads constructor(
                     pointer1Start = Pair(event.getX(0), event.getY(0))
                     pointer2Start = Pair(event.getX(1), event.getY(1))
                     isSpreadGesture = true; spreadTriggered = false; draggedNode = null
+                    // When second finger goes down, reset pan anchor to midpoint
+                    lastTouchX = (event.getX(0) + event.getX(1)) / 2f
+                    lastTouchY = (event.getY(0) + event.getY(1)) / 2f
                 }
             }
             MotionEvent.ACTION_MOVE -> {
                 velocityTracker?.addMovement(event)
+                // Zoom is handled inside onScale — skip pan to avoid double panning
                 if (scaleDetector.isInProgress) return true
+
                 val dx = event.x - lastTouchX; val dy = event.y - lastTouchY
                 if (event.pointerCount == 2 && isSpreadGesture && !spreadTriggered) {
                     val midX = (event.getX(0)+event.getX(1))/2f
@@ -315,7 +350,16 @@ class NodaCanvasView @JvmOverloads constructor(
                 }
                 velocityTracker = null; isSpreadGesture = false; spreadTriggered = false; draggedNode = null
             }
-            MotionEvent.ACTION_POINTER_UP -> { isSpreadGesture = false; draggedNode = null }
+            MotionEvent.ACTION_POINTER_UP -> {
+                isSpreadGesture = false; draggedNode = null
+                // Snap lastTouch to the finger that's still down — prevents jump on lift
+                val liftedIndex = event.actionIndex
+                val remainingIndex = if (liftedIndex == 0) 1 else 0
+                if (remainingIndex < event.pointerCount) {
+                    lastTouchX = event.getX(remainingIndex)
+                    lastTouchY = event.getY(remainingIndex)
+                }
+            }
         }
         return true
     }
