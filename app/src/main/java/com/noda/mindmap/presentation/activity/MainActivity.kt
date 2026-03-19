@@ -99,11 +99,22 @@ class MainActivity : AppCompatActivity() {
             binding.root.postDelayed({ openNotes(node) }, 50)
         }
         binding.nodaCanvas.onConnectionCreated = { viewModel.addConnection(it) }
+        binding.nodaCanvas.onConnectionDeleted = { viewModel.deleteConnection(it) }
         binding.nodaCanvas.onNodesMergeRequested = { a, b -> showMergeDialog(a, b) }
         binding.nodaCanvas.onNodeLongPressed = { node ->
             viewModel.selectNode(node)
             if (binding.notesPanel.visibility != View.VISIBLE)
                 showBottomPanel(node, focusInput = true)
+        }
+        binding.nodaCanvas.onConnectionModeChanged = { active ->
+            if (active) {
+                android.widget.Toast.makeText(
+                    this,
+                    "Нажми на другую ноду чтобы связать  •  Двойной тап или 2 пальца — отмена",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+                hideBottomPanel()
+            }
         }
     }
 

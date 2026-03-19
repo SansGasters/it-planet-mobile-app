@@ -22,11 +22,12 @@ class NodaCanvasView @JvmOverloads constructor(
     private val connections = mutableListOf<Connection>()
     private var selectedNode: Node? = null
 
+    // Connection mode: long press sets sourceNode, next tap on another node creates connection
+    private var connectionSourceNode: Node? = null
+
     private var cameraX = 0f
     private var cameraY = 0f
     private var cameraScale = 1f
-
-    // For pinch zoom — track focal point to zoom toward fingers, not screen center
     private var lastFocusX = 0f
     private var lastFocusY = 0f
 
@@ -42,6 +43,20 @@ class NodaCanvasView @JvmOverloads constructor(
         color = Color.WHITE; style = Paint.Style.FILL
     }
 
+    // Paint for drawing the "pending connection" line
+    private val pendingLinePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = 2f
+        color = Color.argb(160, 108, 99, 255)
+        pathEffect = DashPathEffect(floatArrayOf(20f, 10f), 0f)
+        maskFilter = BlurMaskFilter(4f, BlurMaskFilter.Blur.NORMAL)
+    }
+    private val pendingDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = Color.argb(200, 108, 99, 255)
+        maskFilter = BlurMaskFilter(8f, BlurMaskFilter.Blur.NORMAL)
+    }
+
     private var stars: List<FloatArray> = emptyList()
     private val nebulae = mutableListOf<FloatArray>()
     private var mergeDialogShown = false
@@ -55,6 +70,10 @@ class NodaCanvasView @JvmOverloads constructor(
     private var pointer1Start = Pair(0f, 0f)
     private var pointer2Start = Pair(0f, 0f)
 
+    // Track current touch position for the pending connection line
+    private var currentTouchWorldX = 0f
+    private var currentTouchWorldY = 0f
+
     private var lastDoubleTapX = 0f
     private var lastDoubleTapY = 0f
     private var doubleTapPulse = 0f
@@ -63,10 +82,12 @@ class NodaCanvasView @JvmOverloads constructor(
 
     var onNodeCreated: ((Node) -> Unit)? = null
     var onNodeSelected: ((Node?) -> Unit)? = null
-    var onNodeDoubleTapped: ((Node) -> Unit)? = null   // ← новый callback
+    var onNodeDoubleTapped: ((Node) -> Unit)? = null
     var onConnectionCreated: ((Connection) -> Unit)? = null
+    var onConnectionDeleted: ((Connection) -> Unit)? = null
     var onNodesMergeRequested: ((Node, Node) -> Unit)? = null
     var onNodeLongPressed: ((Node) -> Unit)? = null
+    var onConnectionModeChanged: ((Boolean) -> Unit)? = null  // true = entered, false = cancelled
 
     init { startAnimationLoop() }
 
@@ -82,8 +103,6 @@ class NodaCanvasView @JvmOverloads constructor(
         nodes.removeIf { it.id !in newIds }
         val existingIds = nodes.map { it.id }.toSet()
         newNodes.filter { it.id !in existingIds }.forEach { nodes.add(it) }
-
-        // Update properties IN PLACE — preserves x, y, vx, vy owned by physics
         newNodes.forEach { updated ->
             val existing = nodes.find { it.id == updated.id } ?: return@forEach
             existing.text = updated.text
@@ -92,7 +111,6 @@ class NodaCanvasView @JvmOverloads constructor(
             existing.radius = updated.radius
             existing.isFrozen = updated.isFrozen
         }
-
         selectedNode?.let { sel -> selectedNode = nodes.find { it.id == sel.id } }
     }
 
@@ -102,35 +120,19 @@ class NodaCanvasView @JvmOverloads constructor(
 
     fun removeNode(nodeId: String) {
         if (draggedNode?.id == nodeId) draggedNode = null
+        if (connectionSourceNode?.id == nodeId) cancelConnectionMode()
         nodes.removeIf { it.id == nodeId }
         connections.removeIf { it.fromNodeId == nodeId || it.toNodeId == nodeId }
         if (selectedNode?.id == nodeId) selectedNode = null
         invalidate()
     }
 
-    fun updateNodeColor(nodeId: String, color: Int) {
-        nodes.find { it.id == nodeId }?.color = color; invalidate()
-    }
-
-    fun updateNodeTextColor(nodeId: String, color: Int) {
-        nodes.find { it.id == nodeId }?.textColor = color; invalidate()
-    }
-
-    fun updateNodeRadius(nodeId: String, radius: Float) {
-        nodes.find { it.id == nodeId }?.radius = radius.coerceIn(30f, 150f); invalidate()
-    }
-
-    fun toggleFreezeNode(nodeId: String) {
-        nodes.find { it.id == nodeId }?.let { it.isFrozen = !it.isFrozen }; invalidate()
-    }
-
-    fun updateNodeText(nodeId: String, text: String) {
-        nodes.find { it.id == nodeId }?.text = text; invalidate()
-    }
-
-    fun setHighlightedNodes(ids: Set<String>) {
-        renderer.highlightedNodeIds = ids; invalidate()
-    }
+    fun updateNodeColor(nodeId: String, color: Int) { nodes.find { it.id == nodeId }?.color = color; invalidate() }
+    fun updateNodeTextColor(nodeId: String, color: Int) { nodes.find { it.id == nodeId }?.textColor = color; invalidate() }
+    fun updateNodeRadius(nodeId: String, radius: Float) { nodes.find { it.id == nodeId }?.radius = radius.coerceIn(30f, 150f); invalidate() }
+    fun toggleFreezeNode(nodeId: String) { nodes.find { it.id == nodeId }?.let { it.isFrozen = !it.isFrozen }; invalidate() }
+    fun updateNodeText(nodeId: String, text: String) { nodes.find { it.id == nodeId }?.text = text; invalidate() }
+    fun setHighlightedNodes(ids: Set<String>) { renderer.highlightedNodeIds = ids; invalidate() }
 
     fun focusOnNode(nodeId: String) {
         val node = nodes.find { it.id == nodeId } ?: return
@@ -140,6 +142,28 @@ class NodaCanvasView @JvmOverloads constructor(
     }
 
     fun resetMergeDialog() { mergeDialogShown = false }
+
+    fun cancelConnectionMode() {
+        connectionSourceNode = null
+        onConnectionModeChanged?.invoke(false)
+        invalidate()
+    }
+
+    // Delete connection between two nodes
+    fun deleteConnectionBetween(fromId: String, toId: String) {
+        val conn = connections.find {
+            (it.fromNodeId == fromId && it.toNodeId == toId) ||
+            (it.fromNodeId == toId && it.toNodeId == fromId)
+        } ?: return
+        connections.remove(conn)
+        onConnectionDeleted?.invoke(conn)
+        invalidate()
+    }
+
+    fun getConnectionsForNode(nodeId: String): List<Connection> =
+        connections.filter { it.fromNodeId == nodeId || it.toNodeId == nodeId }
+
+    fun isInConnectionMode() = connectionSourceNode != null
 
     // ─── Drawing ──────────────────────────────────────────────────────────────
 
@@ -153,13 +177,38 @@ class NodaCanvasView @JvmOverloads constructor(
         canvas.save()
         canvas.translate(width / 2f + cameraX, height / 2f + cameraY)
         canvas.scale(cameraScale, cameraScale)
+
         for (conn in connections) {
             val from = nodes.find { it.id == conn.fromNodeId } ?: continue
             val to = nodes.find { it.id == conn.toNodeId } ?: continue
             renderer.drawConnection(canvas, from, to, conn)
         }
-        for (node in nodes) renderer.drawNode(canvas, node, node.id == selectedNode?.id)
+
+        // Draw pending connection line from source to current touch
+        val src = connectionSourceNode
+        if (src != null) {
+            drawPendingConnection(canvas, src)
+        }
+
+        for (node in nodes) {
+            val isSource = node.id == connectionSourceNode?.id
+            renderer.drawNode(canvas, node, node.id == selectedNode?.id, isSource)
+        }
+
         canvas.restore()
+    }
+
+    private fun drawPendingConnection(canvas: Canvas, src: Node) {
+        val tx = currentTouchWorldX
+        val ty = currentTouchWorldY
+
+        // Dashed line from source to finger
+        canvas.drawLine(src.x, src.y, tx, ty, pendingLinePaint)
+
+        // Pulsing dot at finger position
+        val pulse = 0.5f + 0.5f * sin(System.currentTimeMillis() * 0.005f)
+        pendingDotPaint.alpha = (140 + (pulse * 80).toInt())
+        canvas.drawCircle(tx, ty, 12f + pulse * 4f, pendingDotPaint)
     }
 
     private fun drawNebulae(canvas: Canvas) {
@@ -227,32 +276,21 @@ class NodaCanvasView @JvmOverloads constructor(
     private val scaleDetector = ScaleGestureDetector(context,
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(d: ScaleGestureDetector): Boolean {
-                lastFocusX = d.focusX
-                lastFocusY = d.focusY
-                return true
+                lastFocusX = d.focusX; lastFocusY = d.focusY; return true
             }
             override fun onScale(d: ScaleGestureDetector): Boolean {
                 val oldScale = cameraScale
                 val newScale = (cameraScale * d.scaleFactor).coerceIn(0.15f, 4f)
-                val focusX = d.focusX
-                val focusY = d.focusY
-
-                // Zoom toward focal point
+                val focusX = d.focusX; val focusY = d.focusY
                 val worldX = (focusX - width / 2f - cameraX) / oldScale
                 val worldY = (focusY - height / 2f - cameraY) / oldScale
                 cameraScale = newScale
                 cameraX = focusX - width / 2f - worldX * newScale
                 cameraY = focusY - height / 2f - worldY * newScale
-
-                // Also pan with focal point delta (handles finger drift during pinch)
                 cameraX += focusX - lastFocusX
                 cameraY += focusY - lastFocusY
-
-                lastFocusX = focusX
-                lastFocusY = focusY
-                // Keep lastTouch in sync so ACTION_POINTER_UP doesn't cause a jump
-                lastTouchX = focusX
-                lastTouchY = focusY
+                lastFocusX = focusX; lastFocusY = focusY
+                lastTouchX = focusX; lastTouchY = focusY
                 return true
             }
         })
@@ -262,34 +300,75 @@ class NodaCanvasView @JvmOverloads constructor(
             override fun onDoubleTap(e: MotionEvent): Boolean {
                 val node = findNodeAtScreen(e.x, e.y)
                 if (node != null) {
-                    // Double tap on node → open notes
-                    onNodeDoubleTapped?.invoke(node)
+                    if (connectionSourceNode != null) {
+                        cancelConnectionMode()
+                    } else {
+                        onNodeDoubleTapped?.invoke(node)
+                    }
                 } else {
-                    // Double tap on empty → create node
-                    val (wx, wy) = screenToWorld(e.x, e.y)
-                    createNewNode(wx, wy)
-                    physics.pushFromPoint(nodes, wx, wy, 200f, 8f)
-                    lastDoubleTapX = e.x; lastDoubleTapY = e.y; doubleTapPulse = 1f
+                    if (connectionSourceNode != null) {
+                        cancelConnectionMode()
+                    } else {
+                        val (wx, wy) = screenToWorld(e.x, e.y)
+                        createNewNode(wx, wy)
+                        physics.pushFromPoint(nodes, wx, wy, 200f, 8f)
+                        lastDoubleTapX = e.x; lastDoubleTapY = e.y; doubleTapPulse = 1f
+                    }
                 }
                 return true
             }
+
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
                 val node = findNodeAtScreen(e.x, e.y)
-                selectedNode = node
-                onNodeSelected?.invoke(node)
-                if (node != null) {
-                    val (wx, wy) = screenToWorld(e.x, e.y)
-                    physics.pushFromPoint(nodes.filter { it.id != node.id }, wx, wy, 150f, 3f)
+                val src = connectionSourceNode
+
+                if (src != null) {
+                    // We're in connection mode
+                    if (node != null && node.id != src.id) {
+                        // Tap on different node → create connection
+                        createConnectionBetween(src.id, node.id)
+                        cancelConnectionMode()
+                    } else if (node == null) {
+                        // Tap on empty space → cancel
+                        cancelConnectionMode()
+                    }
+                    // Tap on source node itself → stay in mode
+                } else {
+                    selectedNode = node
+                    onNodeSelected?.invoke(node)
+                    if (node != null) {
+                        val (wx, wy) = screenToWorld(e.x, e.y)
+                        physics.pushFromPoint(nodes.filter { it.id != node.id }, wx, wy, 150f, 3f)
+                    }
                 }
-                invalidate(); return true
+                invalidate()
+                return true
             }
+
             override fun onLongPress(e: MotionEvent) {
-                findNodeAtScreen(e.x, e.y)?.let { node ->
-                    selectedNode = node; onNodeLongPressed?.invoke(node)
+                val node = findNodeAtScreen(e.x, e.y)
+                if (node != null) {
+                    if (connectionSourceNode == null) {
+                        // Enter connection mode
+                        connectionSourceNode = node
+                        selectedNode = node
+                        val (wx, wy) = screenToWorld(e.x, e.y)
+                        currentTouchWorldX = wx
+                        currentTouchWorldY = wy
+                        onConnectionModeChanged?.invoke(true)
+                        invalidate()
+                    } else {
+                        // Second long press → open context menu
+                        selectedNode = node
+                        onNodeLongPressed?.invoke(node)
+                    }
                 }
             }
+
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                draggedNode?.let { physics.applyFling(it, vx / 60f, vy / 60f); draggedNode = null }
+                if (connectionSourceNode == null) {
+                    draggedNode?.let { physics.applyFling(it, vx / 60f, vy / 60f); draggedNode = null }
+                }
                 return true
             }
         })
@@ -297,10 +376,18 @@ class NodaCanvasView @JvmOverloads constructor(
     override fun onTouchEvent(event: MotionEvent): Boolean {
         scaleDetector.onTouchEvent(event)
         gestureDetector.onTouchEvent(event)
+
+        // Track touch position for pending connection line
+        if (connectionSourceNode != null && event.pointerCount == 1) {
+            val (wx, wy) = screenToWorld(event.x, event.y)
+            currentTouchWorldX = wx
+            currentTouchWorldY = wy
+        }
+
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 lastTouchX = event.x; lastTouchY = event.y
-                draggedNode = findNodeAtScreen(event.x, event.y)
+                draggedNode = if (connectionSourceNode == null) findNodeAtScreen(event.x, event.y) else null
                 isSpreadGesture = false; spreadTriggered = false
                 velocityTracker?.recycle()
                 velocityTracker = VelocityTracker.obtain()
@@ -308,19 +395,18 @@ class NodaCanvasView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_POINTER_DOWN -> {
                 if (event.pointerCount == 2) {
+                    // Two fingers cancels connection mode
+                    if (connectionSourceNode != null) cancelConnectionMode()
                     pointer1Start = Pair(event.getX(0), event.getY(0))
                     pointer2Start = Pair(event.getX(1), event.getY(1))
                     isSpreadGesture = true; spreadTriggered = false; draggedNode = null
-                    // When second finger goes down, reset pan anchor to midpoint
                     lastTouchX = (event.getX(0) + event.getX(1)) / 2f
                     lastTouchY = (event.getY(0) + event.getY(1)) / 2f
                 }
             }
             MotionEvent.ACTION_MOVE -> {
                 velocityTracker?.addMovement(event)
-                // Zoom is handled inside onScale — skip pan to avoid double panning
                 if (scaleDetector.isInProgress) return true
-
                 val dx = event.x - lastTouchX; val dy = event.y - lastTouchY
                 if (event.pointerCount == 2 && isSpreadGesture && !spreadTriggered) {
                     val midX = (event.getX(0)+event.getX(1))/2f
@@ -332,19 +418,24 @@ class NodaCanvasView @JvmOverloads constructor(
                         createNewNode(wx, wy); spreadTriggered = true; isSpreadGesture = false
                     }
                 } else if (event.pointerCount == 1) {
-                    if (draggedNode != null) {
+                    if (draggedNode != null && connectionSourceNode == null) {
                         draggedNode!!.x += dx/cameraScale; draggedNode!!.y += dy/cameraScale
                         draggedNode!!.vx = dx/cameraScale*0.5f; draggedNode!!.vy = dy/cameraScale*0.5f
-                    } else { cameraX += dx; cameraY += dy }
+                    } else if (connectionSourceNode == null) {
+                        cameraX += dx; cameraY += dy
+                    }
+                    // In connection mode: only update the pending line (already done above)
                 }
                 lastTouchX = event.x; lastTouchY = event.y
             }
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 velocityTracker?.apply {
                     computeCurrentVelocity(1000)
-                    draggedNode?.let { node ->
-                        val speed = sqrt(xVelocity*xVelocity + yVelocity*yVelocity)
-                        if (speed > 200f) physics.applyFling(node, xVelocity/60f, yVelocity/60f)
+                    if (connectionSourceNode == null) {
+                        draggedNode?.let { node ->
+                            val speed = sqrt(xVelocity*xVelocity + yVelocity*yVelocity)
+                            if (speed > 200f) physics.applyFling(node, xVelocity/60f, yVelocity/60f)
+                        }
                     }
                     recycle()
                 }
@@ -352,7 +443,6 @@ class NodaCanvasView @JvmOverloads constructor(
             }
             MotionEvent.ACTION_POINTER_UP -> {
                 isSpreadGesture = false; draggedNode = null
-                // Snap lastTouch to the finger that's still down — prevents jump on lift
                 val liftedIndex = event.actionIndex
                 val remainingIndex = if (liftedIndex == 0) 1 else 0
                 if (remainingIndex < event.pointerCount) {
@@ -372,8 +462,11 @@ class NodaCanvasView @JvmOverloads constructor(
     }
 
     fun createConnectionBetween(fromId: String, toId: String) {
-        if (connections.any { (it.fromNodeId==fromId&&it.toNodeId==toId)||(it.fromNodeId==toId&&it.toNodeId==fromId) }) return
-        val conn = Connection(id=UUID.randomUUID().toString(), fromNodeId=fromId, toNodeId=toId)
+        if (connections.any {
+                (it.fromNodeId == fromId && it.toNodeId == toId) ||
+                (it.fromNodeId == toId && it.toNodeId == fromId)
+            }) return
+        val conn = Connection(id = UUID.randomUUID().toString(), fromNodeId = fromId, toNodeId = toId)
         connections.add(conn); onConnectionCreated?.invoke(conn); invalidate()
     }
 

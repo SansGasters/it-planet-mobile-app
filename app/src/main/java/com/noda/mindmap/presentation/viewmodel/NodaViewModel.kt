@@ -99,6 +99,10 @@ class NodaViewModel @Inject constructor(
         repository.addConnection(connection)
     }
 
+    fun deleteConnection(connection: Connection) = viewModelScope.launch {
+        repository.deleteConnection(connection)
+    }
+
     fun toggleFreeze(nodeId: String) = viewModelScope.launch {
         val node = _uiState.value.nodes.find { it.id == nodeId } ?: return@launch
         repository.updateNode(node.copy(isFrozen = !node.isFrozen))

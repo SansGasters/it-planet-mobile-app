@@ -89,7 +89,7 @@ class NodeRenderer {
         return inv * inv * p0 + 2f * inv * t * p1 + t * t * p2
     }
 
-    fun drawNode(canvas: Canvas, node: Node, isSelected: Boolean = false) {
+    fun drawNode(canvas: Canvas, node: Node, isSelected: Boolean = false, isConnectionSource: Boolean = false) {
         val pulse = sin(node.pulsePhase) * 3f
         val breathe = 1f + sin(node.pulsePhase * 0.7f) * 0.015f
         val r = (node.radius + pulse) * breathe
@@ -101,6 +101,23 @@ class NodeRenderer {
         // Search highlight ring
         if (node.id in highlightedNodeIds) {
             canvas.drawCircle(node.x, node.y, r + 10f + sin(node.pulsePhase * 3f) * 3f, highlightPaint)
+        }
+
+        // Connection source ring — pulsing cyan ring
+        if (isConnectionSource) {
+            val p1 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE; strokeWidth = 3f
+                val pulse = (0.5f + 0.5f * sin(node.pulsePhase * 3f))
+                color = Color.argb((180 + (pulse * 60).toInt()), 67, 217, 173)
+                maskFilter = BlurMaskFilter(10f, BlurMaskFilter.Blur.NORMAL)
+            }
+            canvas.drawCircle(node.x, node.y, r + 12f + sin(node.pulsePhase * 3f) * 4f, p1)
+            val p2 = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE; strokeWidth = 1.5f
+                color = Color.argb(80, 67, 217, 173)
+                maskFilter = BlurMaskFilter(6f, BlurMaskFilter.Blur.NORMAL)
+            }
+            canvas.drawCircle(node.x, node.y, r + 22f + sin(node.pulsePhase * 2f) * 3f, p2)
         }
 
         // Outer glow
